@@ -1,0 +1,30 @@
+# Node dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.local
+
+# Hardhat artifacts and cache
+artifacts/
+cache/
+typechain/
+typechain-types/
+
+# Coverage reports
+coverage/
+coverage.json
+.nyc_output/
+
+# macOS system files
+.DS_Store
+
+# IDE and Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build output
+dist/
+build/
