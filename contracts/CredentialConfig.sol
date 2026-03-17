@@ -9,7 +9,13 @@ contract CredentialConfig is Initializable {
     address public authority;
     address public registry;
 
-    // No constructor to disable initializers, since proxy upgrades aren't used.
+    error OnlyDeployerForbidden();
+
+    address private immutable deployer;
+
+    constructor() {
+        deployer = msg.sender;
+    }
 
     /// @notice Initializes the config with the deployed addresses once
     /// @param _authority Address of the authority contract
@@ -18,6 +24,8 @@ contract CredentialConfig is Initializable {
         address _authority,
         address _registry
     ) external initializer {
+        if (msg.sender != deployer) revert OnlyDeployerForbidden();
+        
         authority = _authority;
         registry = _registry;
     }

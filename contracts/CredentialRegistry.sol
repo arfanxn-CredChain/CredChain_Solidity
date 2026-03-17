@@ -49,12 +49,18 @@ contract CredentialRegistry is Initializable, ERC721Upgradeable {
     error InvalidSignatureForbidden();
     error InvalidNonceForbidden();
     error IssuerRoleRequiredForbidden();
+    error OnlyDeployerForbidden();
 
-    // No constructor to disable initializers, since proxy upgrades aren't used.
+    address private immutable deployer;
+
+    constructor() {
+        deployer = msg.sender;
+    }
 
     /// @notice Initializes the registry with the configuration contract
     /// @param _config Address of the CredentialConfig
     function initialize(address _config) external initializer {
+        if (msg.sender != deployer) revert OnlyDeployerForbidden();
         if (_config == address(0)) revert ConfigZeroAddressForbidden();
         __ERC721_init("CredChain Credential", "CCC");
         config = CredentialConfig(_config);

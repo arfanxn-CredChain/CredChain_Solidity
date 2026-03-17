@@ -54,8 +54,13 @@ contract CredentialAuthority is Initializable {
     error SignerRoleAdminRequiredForbidden();
     error SuperAdminRoleForbidden();
     error BatchUpdateUserRoleLengthMismatchForbidden();
+    error OnlyDeployerForbidden();
 
-    // No constructor to disable initializers, since proxy upgrades aren't used.
+    address private immutable deployer;
+
+    constructor() {
+        deployer = msg.sender;
+    }
 
     /// @notice Initializes the contract with a super admin and config
     /// @param superAdminUser The address of the initial super admin
@@ -64,6 +69,7 @@ contract CredentialAuthority is Initializable {
         address superAdminUser,
         address _config
     ) external initializer {
+        if (msg.sender != deployer) revert OnlyDeployerForbidden();
         if (superAdminUser == address(0))
             revert SuperAdminZeroAddressForbidden();
 
