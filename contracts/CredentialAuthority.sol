@@ -119,27 +119,6 @@ contract CredentialAuthority is CredentialBase {
         return userToRole[user] >= minimumRole;
     }
 
-    /// @notice Checks if the user is at least an Issuer.
-    /// @param user The address to check
-    /// @return bool True if Issuer, Admin, or SuperAdmin
-    function isIssuerOrHigher(address user) public view returns (bool) {
-        return userToRole[user] >= Role.Issuer;
-    }
-
-    /// @notice Checks if the user is at least an Admin.
-    /// @param user The address to check
-    /// @return bool True if Admin or SuperAdmin
-    function isAdminOrHigher(address user) public view returns (bool) {
-        return userToRole[user] >= Role.Admin;
-    }
-
-    /// @notice Checks if a user is a SuperAdmin.
-    /// @param user The address to check
-    /// @return bool True if SuperAdmin
-    function isSuperAdmin(address user) public view returns (bool) {
-        return userToRole[user] == Role.SuperAdmin;
-    }
-
     /// @notice Struct for defining a user's role update.
     /// @dev Used in batch role update operations.
     struct UserRoleUpdation {

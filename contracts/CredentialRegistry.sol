@@ -75,7 +75,7 @@ contract CredentialRegistry is Initializable, ERC721Upgradeable {
     /// @notice Modifier enforcing the caller is an Issuer or higher
     /// @param signer The address to verify
     modifier onlyIssuerOrHigher(address signer) {
-        if (!_getAuthority().isIssuerOrHigher(signer))
+        if (!_getAuthority().hasRoleOrAbove(signer, CredentialAuthority.Role.Issuer))
             revert IssuerRoleRequiredForbidden();
         _;
     }
