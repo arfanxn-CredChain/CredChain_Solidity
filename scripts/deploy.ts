@@ -93,6 +93,6 @@ async function main() {
 // Execute the deployment script
 // If any error occurs, log it and exit with error code
 main().catch((error) => {
-    console.error("Deployment failed:", error);
+    console.error(error);
     process.exitCode = 1;
 });

@@ -8,16 +8,16 @@ import { ethers } from "hardhat";
 
 describe("Deploy Script", function () {
     describe("Environment Variable Validation", function () {
-        const originalEnvValue: string | undefined = process.env.INITIAL_SUPER_ADMIN_WALLET_ADDRESS;
+        const initialSuperAdminWalletAddress: string | undefined = process.env.INITIAL_SUPER_ADMIN_WALLET_ADDRESS;
 
         beforeEach(function () {
             // Save original value and clear for tests
-            process.env.INITIAL_SUPER_ADMIN_WALLET_ADDRESS = originalEnvValue;
+            process.env.INITIAL_SUPER_ADMIN_WALLET_ADDRESS = initialSuperAdminWalletAddress;
         });
 
         after(function () {
             // Restore original value after tests
-            process.env.INITIAL_SUPER_ADMIN_WALLET_ADDRESS = originalEnvValue;
+            process.env.INITIAL_SUPER_ADMIN_WALLET_ADDRESS = initialSuperAdminWalletAddress;
         });
 
         it("Should throw error when INITIAL_SUPER_ADMIN_WALLET_ADDRESS is not set", function () {
