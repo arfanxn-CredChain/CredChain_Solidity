@@ -265,6 +265,51 @@ Before pushing, run the repo's canonical verification command and confirm it pas
 - `CredChain_Python`: `make lint && make typecheck && make test`
 - `CredChain_React`: `npm run lint && npm run build && npm run test && npm run check-locales`
 
+## Local Dev Chain Persistence
+
+Hardhat's `npx hardhat node` has no state persistence — all chain state is lost on restart.
+Use Anvil (Foundry) in Docker Compose for a persisted local chain:
+
+```bash
+# Start persisted chain
+cd CredChain_Golang && docker compose up -d anvil
+
+# Deploy (first time only — contracts survive restarts)
+INITIAL_SUPER_ADMIN_WALLET_ADDRESS=0x70997970C51812dc3A010C7d01b50e0d17dc79C8 \
+  npx hardhat run scripts/deploy.ts --network localhost
+
+# Run tests (still uses in-process Hardhat — unchanged)
+npx hardhat test
+```
+
+State is saved to `CredChain_Golang/docker/anvil/data/state.json` via bind mount.
+On graceful shutdown (docker stop → SIGTERM), Anvil writes the full chain state to this file and auto-loads it on next start.
+
+**Post-deploy setup:** After deploying contracts and updating `.env.docker` with contract addresses,
+run the full setup flow once:
+
+```bash
+cd CredChain_Golang
+docker compose up -d postgres mongo
+docker compose run --rm backend ./server migrate-up --env .env.docker
+docker compose run --rm backend ./server init-super-admin --env .env.docker
+docker compose run --rm backend ./server seed --env .env.docker
+docker compose run --rm backend ./server seed-chain --env .env.docker
+docker compose up -d                  # full stack
+```
+
+From this point on, contracts and chain state survive `docker compose down` and PC reboots.
+Only the database setup (migrate, init-super-admin, seed, seed-chain) needs to be done once.
+
+**Hardhat accounts** (mnemonic) are identical between Hardhat and Anvil, so all scripts, wallet derivations, and the `seed-chain` command work unchanged.
+
+| Index | Address | Role |
+|---|---|---|
+| 0 | `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266` | Relayer |
+| 1 | `0x70997970C51812dc3A010C7d01b50e0d17dc79C8` | SuperAdmin |
+| 2 | `0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC` | Admin |
+| 3–15 | (derived via BIP44) | Issuers/Holders |
+
 ## See Also
 
 - `hardhat.config.ts` — compiler + network configuration
