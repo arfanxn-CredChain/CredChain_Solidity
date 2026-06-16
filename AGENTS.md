@@ -285,23 +285,28 @@ npx hardhat test
 State is saved to `CredChain_Golang/docker/anvil/data/state.json` via bind mount.
 On graceful shutdown (docker stop → SIGTERM), Anvil writes the full chain state to this file and auto-loads it on next start.
 
-**Post-deploy setup:** After deploying contracts and updating `.env.docker` with contract addresses,
-run the full setup flow once:
+**Post-deploy setup** (run once — Go runs locally, infrastructure in Docker):
 
 ```bash
-cd CredChain_Golang
-docker compose up -d postgres mongo
-docker compose run --rm backend ./server migrate-up --env .env.docker
-docker compose run --rm backend ./server init-super-admin --env .env.docker
-docker compose run --rm backend ./server seed --env .env.docker
-docker compose run --rm backend ./server seed-chain --env .env.docker
-docker compose up -d                  # full stack
+# Start infrastructure
+cd CredChain_Golang && docker compose up -d anvil postgres mongo
+
+# Update .env with contract addresses from deploy output
+
+# One-time setup (local Go)
+make migrate-up
+make init-super-admin
+make seed
+make seed-chain
+
+# Start backend
+make serve
 ```
 
-From this point on, contracts and chain state survive `docker compose down` and PC reboots.
-Only the database setup (migrate, init-super-admin, seed, seed-chain) needs to be done once.
+Contracts and chain state survive `docker compose down` and PC reboots.
+Only the database setup needs to be done once per fresh state deletion.
 
-**Hardhat accounts** (mnemonic) are identical between Hardhat and Anvil, so all scripts, wallet derivations, and the `seed-chain` command work unchanged.
+**Hardhat accounts (mnemonic):**
 
 | Index | Address | Role |
 |---|---|---|
