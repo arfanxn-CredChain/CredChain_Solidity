@@ -662,8 +662,11 @@ describe("CredentialRegistry", function () {
         });
     });
 
-    function computeCredentialId(hash: string): bigint {
-        return BigInt(ethers.keccak256(ethers.toUtf8Bytes(hash)));
+    function computeCredentialId(issuer: string, nonce: number, holder: string, hash: string): bigint {
+        return BigInt(ethers.solidityPackedKeccak256(
+            ["address", "uint256", "address", "string"],
+            [issuer, nonce, holder, hash]
+        ));
     }
 
     function packIssueCredentials(issuer: string, credentials: { holder: string; hash: string; uri: string }[], nonce: number): string {
@@ -735,7 +738,7 @@ it("Should revert on zero address config", async function () {
                 })
             ).to.emit(registry, "CredentialIssued");
 
-            const credId1 = computeCredentialId("hash1");
+            const credId1 = computeCredentialId(issuer.address, nonce, holder.address, "hash1");
             const cred = await registry.findCredential(credId1);
             expect(cred.holder).to.equal(holder.address);
         });
@@ -753,7 +756,7 @@ it("Should revert on zero address config", async function () {
                 signature: signature
             });
 
-            const credId = computeCredentialId("relayerHash");
+            const credId = computeCredentialId(issuer.address, nonce, holder.address, "relayerHash");
             const cred = await registry.findCredential(credId);
             expect(cred.holder).to.equal(holder.address);
         });
@@ -797,33 +800,28 @@ it("Should revert on zero address config", async function () {
             ).to.be.revertedWithCustomError(registry, "InvalidNonceError");
         });
 
-        it("Should revert on duplicate credential", async function () {
+        it("Should revert on duplicate credential (same holder, same hash, active)", async function () {
             const credentials = [{ holder: holder.address, hash: "duplicateHash", uri: "uri1" }];
             const nonce = await registry.userToNonce(issuer.address);
             const digest = packIssueCredentials(issuer.address, credentials, nonce);
             const signature = await issuer.signMessage(ethers.getBytes(digest));
 
-            // First issuance
             await registry.batchIssueCredentialsWithSignature({
-                issuer: issuer.address,
-                credentials: credentials,
-                nonce: nonce,
-                signature: signature
+                issuer: issuer.address, credentials: credentials, nonce: nonce, signature: signature
             });
 
-            // Second issuance should fail
+            const credId1 = computeCredentialId(issuer.address, nonce, holder.address, "duplicateHash");
+            expect((await registry.findCredential(credId1)).holder).to.equal(holder.address);
+
             const nonce2 = await registry.userToNonce(issuer.address);
             const digest2 = packIssueCredentials(issuer.address, credentials, nonce2);
             const signature2 = await issuer.signMessage(ethers.getBytes(digest2));
 
             await expect(
                 registry.batchIssueCredentialsWithSignature({
-                    issuer: issuer.address,
-                    credentials: credentials,
-                    nonce: nonce2,
-                    signature: signature2
+                    issuer: issuer.address, credentials: credentials, nonce: nonce2, signature: signature2
                 })
-            ).to.be.revertedWithCustomError(registry, "IssueIssuedCredentialError");
+            ).to.be.revertedWithCustomError(registry, "IssuedCredentialError");
         });
 
         it("Should revert on zero address holder", async function () {
@@ -880,6 +878,54 @@ it("Should revert on zero address config", async function () {
                 })
             ).to.emit(registry, "CredentialIssued");
         });
+
+        it("Should allow same file hash for different holders", async function () {
+            const credentials = [{ holder: holder.address, hash: "sameHash", uri: "uri1" }];
+            let nonce = await registry.userToNonce(issuer.address);
+            let digest = packIssueCredentials(issuer.address, credentials, nonce);
+            let signature = await issuer.signMessage(ethers.getBytes(digest));
+            await registry.batchIssueCredentialsWithSignature({
+                issuer: issuer.address, credentials: credentials, nonce: nonce, signature: signature
+            });
+
+            const credentials2 = [{ holder: extraUser.address, hash: "sameHash", uri: "uri2" }];
+            nonce = await registry.userToNonce(issuer.address);
+            digest = packIssueCredentials(issuer.address, credentials2, nonce);
+            signature = await issuer.signMessage(ethers.getBytes(digest));
+            await expect(
+                registry.batchIssueCredentialsWithSignature({
+                    issuer: issuer.address, credentials: credentials2, nonce: nonce, signature: signature
+                })
+            ).to.emit(registry, "CredentialIssued");
+        });
+
+        it("Should allow re-issuing same hash for same holder after revoke", async function () {
+            const credentials = [{ holder: holder.address, hash: "reissueHash", uri: "uri1" }];
+            let nonce = await registry.userToNonce(issuer.address);
+            let digest = packIssueCredentials(issuer.address, credentials, nonce);
+            let signature = await issuer.signMessage(ethers.getBytes(digest));
+            await registry.batchIssueCredentialsWithSignature({
+                issuer: issuer.address, credentials: credentials, nonce: nonce, signature: signature
+            });
+
+            const credId = computeCredentialId(issuer.address, nonce, holder.address, "reissueHash");
+
+            nonce = await registry.userToNonce(issuer.address);
+            const revokeDigest = packRevokeCredentials(issuer.address, [credId], nonce);
+            const revokeSignature = await issuer.signMessage(ethers.getBytes(revokeDigest));
+            await registry.batchRevokeCredentialsWithSignature({
+                revoker: issuer.address, credentialIds: [credId], nonce: nonce, signature: revokeSignature
+            });
+
+            nonce = await registry.userToNonce(issuer.address);
+            digest = packIssueCredentials(issuer.address, credentials, nonce);
+            signature = await issuer.signMessage(ethers.getBytes(digest));
+            await expect(
+                registry.batchIssueCredentialsWithSignature({
+                    issuer: issuer.address, credentials: credentials, nonce: nonce, signature: signature
+                })
+            ).to.emit(registry, "CredentialIssued");
+        });
     });
 
     describe("batchRevokeCredentialsWithSignature", function () {
@@ -899,7 +945,7 @@ it("Should revert on zero address config", async function () {
                 signature: signature
             });
 
-            issuedCredentialId = computeCredentialId("revokeHash");
+            issuedCredentialId = computeCredentialId(issuer.address, nonce, holder.address, "revokeHash");
         });
 
         it("Should batch revoke with struct params", async function () {
@@ -1019,7 +1065,7 @@ it("Should revert on zero address config", async function () {
                 signature: signature
             });
 
-            const credId = computeCredentialId("soulboundHash");
+            const credId = computeCredentialId(issuer.address, nonce, holder.address, "soulboundHash");
 
             await expect(
                 registry.connect(holder).transferFrom(holder.address, admin.address, credId)
@@ -1039,7 +1085,7 @@ it("Should revert on zero address config", async function () {
                 signature: signature
             });
 
-            const credId = computeCredentialId("safeTransferHash");
+            const credId = computeCredentialId(issuer.address, nonce, holder.address, "safeTransferHash");
 
             await expect(
                 registry["safeTransferFrom(address,address,uint256)"](holder.address, admin.address, credId)
@@ -1067,8 +1113,8 @@ it("Should revert on zero address config", async function () {
                 signature: signature
             });
 
-            credentialId1 = computeCredentialId("queryHash1");
-            credentialId2 = computeCredentialId("queryHash2");
+            credentialId1 = computeCredentialId(issuer.address, nonce, holder.address, "queryHash1");
+            credentialId2 = computeCredentialId(issuer.address, nonce, holder.address, "queryHash2");
         });
 
         it("Should find credential by ID", async function () {
@@ -1108,6 +1154,56 @@ it("Should revert on zero address config", async function () {
 
             const isNotHolder = await registry.isHolderOfCredentialIds(extraUser.address, [credentialId1]);
             expect(isNotHolder).to.be.false;
+        });
+    });
+
+    describe("getCredentialHashPerHolderStatuses", function () {
+        it("Should return None for unknown hash", async function () {
+            const fileHash = ethers.keccak256(ethers.toUtf8Bytes("nonexistent"));
+            const statuses = await registry.getCredentialHashPerHolderStatuses([holder.address], [fileHash]);
+            expect(statuses.length).to.equal(1);
+            expect(statuses[0].hash).to.equal(fileHash);
+            expect(statuses[0].status).to.equal(0);
+        });
+
+        it("Should return Issued after issuance", async function () {
+            const hash = "statusTestHash";
+            const credentials = [{ holder: holder.address, hash: hash, uri: "uri" }];
+            const nonce = await registry.userToNonce(issuer.address);
+            const digest = packIssueCredentials(issuer.address, credentials, nonce);
+            const signature = await issuer.signMessage(ethers.getBytes(digest));
+
+            await registry.batchIssueCredentialsWithSignature({
+                issuer: issuer.address, credentials: credentials, nonce: nonce, signature: signature
+            });
+
+            const fileHashBytes = ethers.keccak256(ethers.toUtf8Bytes(hash));
+            const statuses = await registry.getCredentialHashPerHolderStatuses([holder.address], [fileHashBytes]);
+            expect(statuses[0].status).to.equal(1);
+        });
+
+        it("Should return Revoked after revocation", async function () {
+            const hash = "revokeStatusHash";
+            const credentials = [{ holder: holder.address, hash: hash, uri: "uri" }];
+            const nonce = await registry.userToNonce(issuer.address);
+            const digest = packIssueCredentials(issuer.address, credentials, nonce);
+            const signature = await issuer.signMessage(ethers.getBytes(digest));
+
+            await registry.batchIssueCredentialsWithSignature({
+                issuer: issuer.address, credentials: credentials, nonce: nonce, signature: signature
+            });
+
+            const credId = computeCredentialId(issuer.address, nonce, holder.address, hash);
+            const nonce2 = await registry.userToNonce(issuer.address);
+            const revDigest = packRevokeCredentials(issuer.address, [credId], nonce2);
+            const revSig = await issuer.signMessage(ethers.getBytes(revDigest));
+            await registry.batchRevokeCredentialsWithSignature({
+                revoker: issuer.address, credentialIds: [credId], nonce: nonce2, signature: revSig
+            });
+
+            const fileHashBytes = ethers.keccak256(ethers.toUtf8Bytes(hash));
+            const statuses = await registry.getCredentialHashPerHolderStatuses([holder.address], [fileHashBytes]);
+            expect(statuses[0].status).to.equal(2);
         });
     });
 
