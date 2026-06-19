@@ -21,6 +21,20 @@ contract CredentialRegistry is CredentialBase, ERC721Upgradeable {
     /// @return The address of the config contract
     CredentialConfig public config;
 
+    enum CredentialStatus { None, Issued, Revoked }
+
+    struct CredentialHashStatus {
+        bytes32 hash;
+        CredentialStatus status;
+    }
+
+    struct CredentialHashPerHolderStatus {
+        address holder;
+        CredentialHashStatus[] statuses;
+    }
+
+    mapping(address => mapping(bytes32 => CredentialStatus)) public holderToCredentialHashStatus;
+
     /// @notice Struct representing a credential's complete information.
     struct Credential {
         uint256 id;
@@ -71,7 +85,7 @@ contract CredentialRegistry is CredentialBase, ERC721Upgradeable {
     error CredentialTransferError();
 
     /// @notice Emitted when attempting to issue a credential that already exists.
-    error IssueIssuedCredentialError();
+    error IssuedCredentialError();
 
     /// @notice Emitted when attempting to revoke a credential that is already revoked.
     error RevokeRevokedCredentialError();
@@ -149,9 +163,18 @@ contract CredentialRegistry is CredentialBase, ERC721Upgradeable {
                 revert InvalidAddressError();
 
             uint256 id = uint256(
-                keccak256(abi.encodePacked(params.credentials[i].hash))
+                keccak256(
+                    abi.encodePacked(
+                        params.issuer,
+                        params.nonce,
+                        params.credentials[i].holder,
+                        params.credentials[i].hash
+                    )
+                )
             );
-            if (_ownerOf(id) != address(0)) revert IssueIssuedCredentialError();
+            bytes32 fileHashBytes = keccak256(abi.encodePacked(params.credentials[i].hash));
+            if (holderToCredentialHashStatus[params.credentials[i].holder][fileHashBytes] == CredentialStatus.Issued)
+                revert IssuedCredentialError();
 
             _issueCredential(
                 id,
@@ -286,6 +309,21 @@ contract CredentialRegistry is CredentialBase, ERC721Upgradeable {
         return true;
     }
 
+    function getCredentialHashPerHolderStatuses(
+        address[] calldata holders,
+        bytes32[] calldata hashes
+    ) external view returns (CredentialHashStatus[] memory) {
+        require(holders.length == hashes.length, "Length mismatch");
+        CredentialHashStatus[] memory statuses = new CredentialHashStatus[](holders.length);
+        for (uint256 i = 0; i < holders.length; i++) {
+            statuses[i] = CredentialHashStatus(
+                hashes[i],
+                holderToCredentialHashStatus[holders[i]][hashes[i]]
+            );
+        }
+        return statuses;
+    }
+
     /// @notice Internal function to issue a credential (mint NFT and store data).
     /// @param id The token ID
     /// @param holder The credential holder
@@ -316,6 +354,9 @@ contract CredentialRegistry is CredentialBase, ERC721Upgradeable {
         holderToCredentialIds[holder].push(id);
 
         emit CredentialIssued(id, holder, issuer);
+
+        bytes32 fileHashBytes = keccak256(abi.encodePacked(hashStr));
+        holderToCredentialHashStatus[holder][fileHashBytes] = CredentialStatus.Issued;
     }
 
     /// @notice Internal function to revoke a credential.
@@ -329,6 +370,9 @@ contract CredentialRegistry is CredentialBase, ERC721Upgradeable {
         cred.revoker = revoker;
 
         emit CredentialRevoked(id, revoker);
+
+        bytes32 fileHashBytes = keccak256(abi.encodePacked(cred.hash));
+        holderToCredentialHashStatus[cred.holder][fileHashBytes] = CredentialStatus.Revoked;
     }
 
     /// @notice Overrides ERC721's _update to enforce soulbound (non-transferable) behavior.
