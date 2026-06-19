@@ -85,7 +85,7 @@ Every custom error ends with `Error`. Shared errors live in `CredentialBase`:
 Contract-specific errors are declared in the contract that owns them:
 
 - `CredentialAuthority`: `SuperAdminRoleNotUpdatableError`, `AdminUpdatePeerAdminRoleError`, `TransferSuperAdminToSelfError`, `SameRoleUpdateError`
-- `CredentialRegistry`: `CredentialTransferError`, `IssueIssuedCredentialError`, `RevokeRevokedCredentialError`, `CredentialNotFoundError`
+- `CredentialRegistry`: `CredentialTransferError`, `IssuedCredentialError`, `RevokeRevokedCredentialError`, `CredentialNotFoundError`
 
 Always raise the most specific error available; do not use generic `require` strings.
 
@@ -184,19 +184,23 @@ Do not change these without re-running the full test suite and re-generating abi
 #### `CredentialRegistry`
 
 - Extends `ERC721Upgradeable` + `CredentialBase`. Name `"CredChain Credential"`, symbol `"CCC"`.
-- Struct `Credential { id, holder, hash, issuer, revoker, issuedAt, revokedAt, uri }`
-- State: `config` (typed `CredentialConfig`), `credentialIdToCredential`, `holderToCredentialIds`, `userToNonce`, `credentials[]`
+- Structs: `Credential { id, holder, hash, issuer, revoker, issuedAt, revokedAt, uri }`, `CredentialHashStatus { hash, status }`
+- Enum: `CredentialStatus { None, Issued, Revoked }`
+- State: `config` (typed `CredentialConfig`), `credentialIdToCredential`, `holderToCredentialIds`, `userToNonce`, `credentials[]`, `holderToCredentialHashStatus`
 - Constants: `MAX_BATCH_CREDENTIAL = 100`
 - Events: `CredentialIssued(id, holder, issuer)`, `CredentialRevoked(id, revoker)`
+- Token ID: `uint256(keccak256(abi.encodePacked(issuer, nonce, holder, hash)))`
+- Duplicate check: per-holder via `holderToCredentialHashStatus` (global re-use allowed, per-holder blocked if Issued, allowed if Revoked)
 - Methods:
   - `initialize(_config)`
-  - `batchIssueCredentialsWithSignature(params)` — gated by `onlyRoleOrAbove(issuer, Issuer)`
-  - `batchRevokeCredentialsWithSignature(params)` — gated by `onlyRoleOrAbove(revoker, Issuer)`
+  - `batchIssueCredentialsWithSignature(params)` — gated by `onlyRoleOrAbove(issuer, Issuer)`; sets `holderToCredentialHashStatus[holder][hash]=Issued`
+  - `batchRevokeCredentialsWithSignature(params)` — gated by `onlyRoleOrAbove(revoker, Issuer)`; sets `holderToCredentialHashStatus[holder][hash]=Revoked`
   - `paginateCredentials(offset, limit) → Credential[]`
   - `paginateCredentialsByHolder(holder, offset, limit) → Credential[]`
   - `getCredentialsByIds(ids[]) → Credential[]`
   - `findCredential(id) → Credential`
   - `isHolderOfCredentialIds(holder, ids[]) → bool`
+  - `getCredentialHashPerHolderStatuses(holders[], hashes[]) → CredentialHashStatus[]`
 - Soulbound: `_update` override reverts on any non-mint transition
 
 ## Configuration / Env Vars
@@ -215,7 +219,7 @@ No env vars are needed for `npx hardhat test` (runs in-process).
 - **Framework:** Chai 4.5 + Mocha + Hardhat Network (in-process EVM)
 - **Files:**
   - `test/01-deploy.test.ts` — 2 tests, validates deployment env-var requirements
-  - `test/02-credential.test.ts` — 60 tests, full behavioral coverage of all 4 contracts
+  - `test/02-credential.test.ts` — 67 tests, full behavioral coverage of all 4 contracts
 - **Coverage:** `coverage.json` is committed; regenerate with `npx hardhat coverage`
 - **Style:** white-box, in-repo, asserts against revert errors by name (e.g. `.to.be.revertedWithCustomError(contract, "InvalidNonceError")`)
 - **No integration tests against real RPC** — Hardhat in-process is the only target
