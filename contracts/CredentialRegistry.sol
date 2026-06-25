@@ -28,12 +28,7 @@ contract CredentialRegistry is CredentialBase, ERC721Upgradeable {
         CredentialStatus status;
     }
 
-    struct CredentialHashPerHolderStatus {
-        address holder;
-        CredentialHashStatus[] statuses;
-    }
-
-    mapping(address => mapping(bytes32 => CredentialStatus)) public holderToCredentialHashStatus;
+    mapping(bytes32 => CredentialStatus) public credentialHashToStatus;
 
     /// @notice Struct representing a credential's complete information.
     struct Credential {
@@ -84,7 +79,7 @@ contract CredentialRegistry is CredentialBase, ERC721Upgradeable {
     /// @dev Soulbound credentials cannot be transferred.
     error CredentialTransferError();
 
-    /// @notice Emitted when attempting to issue a credential that already exists.
+    /// @notice Emitted when attempting to issue a credential with a file hash that is already actively issued.
     error IssuedCredentialError();
 
     /// @notice Emitted when attempting to revoke a credential that is already revoked.
@@ -173,7 +168,7 @@ contract CredentialRegistry is CredentialBase, ERC721Upgradeable {
                 )
             );
             bytes32 fileHashBytes = keccak256(abi.encodePacked(params.credentials[i].hash));
-            if (holderToCredentialHashStatus[params.credentials[i].holder][fileHashBytes] == CredentialStatus.Issued)
+            if (credentialHashToStatus[fileHashBytes] == CredentialStatus.Issued)
                 revert IssuedCredentialError();
 
             _issueCredential(
@@ -309,16 +304,17 @@ contract CredentialRegistry is CredentialBase, ERC721Upgradeable {
         return true;
     }
 
-    function getCredentialHashPerHolderStatuses(
-        address[] calldata holders,
+    /// @notice Returns credential statuses for the given file hashes.
+    /// @param hashes Array of file hashes to query
+    /// @return Array of CredentialHashStatus (hash + status)
+    function getCredentialHashStatuses(
         bytes32[] calldata hashes
     ) external view returns (CredentialHashStatus[] memory) {
-        require(holders.length == hashes.length, "Length mismatch");
-        CredentialHashStatus[] memory statuses = new CredentialHashStatus[](holders.length);
-        for (uint256 i = 0; i < holders.length; i++) {
+        CredentialHashStatus[] memory statuses = new CredentialHashStatus[](hashes.length);
+        for (uint256 i = 0; i < hashes.length; i++) {
             statuses[i] = CredentialHashStatus(
                 hashes[i],
-                holderToCredentialHashStatus[holders[i]][hashes[i]]
+                credentialHashToStatus[hashes[i]]
             );
         }
         return statuses;
@@ -356,7 +352,7 @@ contract CredentialRegistry is CredentialBase, ERC721Upgradeable {
         emit CredentialIssued(id, holder, issuer);
 
         bytes32 fileHashBytes = keccak256(abi.encodePacked(hashStr));
-        holderToCredentialHashStatus[holder][fileHashBytes] = CredentialStatus.Issued;
+        credentialHashToStatus[fileHashBytes] = CredentialStatus.Issued;
     }
 
     /// @notice Internal function to revoke a credential.
@@ -372,7 +368,7 @@ contract CredentialRegistry is CredentialBase, ERC721Upgradeable {
         emit CredentialRevoked(id, revoker);
 
         bytes32 fileHashBytes = keccak256(abi.encodePacked(cred.hash));
-        holderToCredentialHashStatus[cred.holder][fileHashBytes] = CredentialStatus.Revoked;
+        credentialHashToStatus[fileHashBytes] = CredentialStatus.Revoked;
     }
 
     /// @notice Overrides ERC721's _update to enforce soulbound (non-transferable) behavior.
