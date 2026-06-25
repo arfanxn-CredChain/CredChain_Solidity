@@ -186,21 +186,21 @@ Do not change these without re-running the full test suite and re-generating abi
 - Extends `ERC721Upgradeable` + `CredentialBase`. Name `"CredChain Credential"`, symbol `"CCC"`.
 - Structs: `Credential { id, holder, hash, issuer, revoker, issuedAt, revokedAt, uri }`, `CredentialHashStatus { hash, status }`
 - Enum: `CredentialStatus { None, Issued, Revoked }`
-- State: `config` (typed `CredentialConfig`), `credentialIdToCredential`, `holderToCredentialIds`, `userToNonce`, `credentials[]`, `holderToCredentialHashStatus`
+- State: `config` (typed `CredentialConfig`), `credentialIdToCredential`, `holderToCredentialIds`, `userToNonce`, `credentials[]`, `credentialHashToStatus`
 - Constants: `MAX_BATCH_CREDENTIAL = 100`
 - Events: `CredentialIssued(id, holder, issuer)`, `CredentialRevoked(id, revoker)`
 - Token ID: `uint256(keccak256(abi.encodePacked(issuer, nonce, holder, hash)))`
-- Duplicate check: per-holder via `holderToCredentialHashStatus` (global re-use allowed, per-holder blocked if Issued, allowed if Revoked)
+- Duplicate check: global via `credentialHashToStatus` (blocked if Issued for any holder, allowed if Revoked)
 - Methods:
   - `initialize(_config)`
-  - `batchIssueCredentialsWithSignature(params)` — gated by `onlyRoleOrAbove(issuer, Issuer)`; sets `holderToCredentialHashStatus[holder][hash]=Issued`
-  - `batchRevokeCredentialsWithSignature(params)` — gated by `onlyRoleOrAbove(revoker, Issuer)`; sets `holderToCredentialHashStatus[holder][hash]=Revoked`
+  - `batchIssueCredentialsWithSignature(params)` — gated by `onlyRoleOrAbove(issuer, Issuer)`; sets `credentialHashToStatus[hash]=Issued`
+  - `batchRevokeCredentialsWithSignature(params)` — gated by `onlyRoleOrAbove(revoker, Issuer)`; sets `credentialHashToStatus[hash]=Revoked`
   - `paginateCredentials(offset, limit) → Credential[]`
   - `paginateCredentialsByHolder(holder, offset, limit) → Credential[]`
   - `getCredentialsByIds(ids[]) → Credential[]`
   - `findCredential(id) → Credential`
   - `isHolderOfCredentialIds(holder, ids[]) → bool`
-  - `getCredentialHashPerHolderStatuses(holders[], hashes[]) → CredentialHashStatus[]`
+  - `getCredentialHashStatuses(hashes[]) → CredentialHashStatus[]`
 - Soulbound: `_update` override reverts on any non-mint transition
 
 ## Configuration / Env Vars
