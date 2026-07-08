@@ -31,3 +31,6 @@ build/
 
 # Logs
 logs/
+
+# Deployment artifacts
+deployments/

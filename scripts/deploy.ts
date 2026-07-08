@@ -1,4 +1,7 @@
 import { ethers } from "hardhat";
+import hre from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
 
 /**
  * @file Credential Contract Deployment Script
@@ -88,6 +91,24 @@ async function main() {
     // All three contracts are now deployed and initialized
     // Save the contract addresses for backend configuration
     // ============================================================
+
+    const network = process.env.HARDHAT_NETWORK || hre.network.name;
+    const deployment = {
+        network,
+        credentialConfig: await config.getAddress(),
+        credentialAuthority: await authority.getAddress(),
+        credentialRegistry: await registry.getAddress(),
+        timestamp: new Date().toISOString(),
+    };
+
+    const deploymentsDir = path.join(__dirname, "..", "deployments");
+    if (!fs.existsSync(deploymentsDir)) {
+        fs.mkdirSync(deploymentsDir, { recursive: true });
+    }
+
+    const outputPath = path.join(deploymentsDir, `${network}.json`);
+    fs.writeFileSync(outputPath, JSON.stringify(deployment, null, 2));
+    console.log(`Deployment artifact saved to ${outputPath}`);
 }
 
 // Execute the deployment script
