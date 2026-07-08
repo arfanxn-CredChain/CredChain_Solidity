@@ -22,8 +22,13 @@ const config: HardhatUserConfig = {
             url: process.env.POLYGON_RPC_URL || "",
             accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
         },
+        // Deprecated: Mumbai was retired April 2024. Use Amoy instead.
         mumbai: {
             url: process.env.MUMBAI_RPC_URL || "",
+            accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+        },
+        amoy: {
+            url: process.env.AMOY_RPC_URL || "",
             accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
         },
         localhost: {
