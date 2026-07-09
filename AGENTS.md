@@ -9,18 +9,19 @@ This file is the authoritative reference for AI assistants and engineers working
 Sibling to `CredChain_Golang/` (backend API), `CredChain_React/` (frontend), and `CredChain_Python/` (AI service).
 
 - **Consumers:** the Go backend consumes contracts via `abigen`-generated bindings located at `CredChain_Golang/infrastructure/chain/contracts/{authority.go,registry.go}`. Those bindings are generated artifacts — **never hand-edit**. Go-side `chain.AuthorityBinding` / `chain.RegistryBinding` interfaces are satisfied structurally by the abigen output, which keeps the backend testable without a live RPC.
-- **Deploy targets:** Polygon mainnet + Mumbai testnet (configured in `hardhat.config.ts`).
+- **Deploy targets:** Polygon mainnet + Amoy testnet (Mumbai is deprecated — retired April 2024).
 - **Initial role bootstrap:** the SuperAdmin wallet address must be supplied at deploy time. The Go backend's `init-super-admin` CLI then verifies on-chain that the wallet actually holds the SuperAdmin role before allowing database initialization.
 
 ## Critical Commands
 
 ```bash
 npx hardhat compile                                   # compile contracts → artifacts/ + typechain-types/
-npx hardhat test                                      # run all tests (62 tests, chai/mocha)
+npx hardhat test                                      # run all tests (69 tests, chai/mocha)
 npx hardhat test test/02-credential.test.ts           # run a single test file
 npx hardhat coverage                                  # solidity-coverage report → coverage/ + coverage.json
 npx hardhat run scripts/deploy.ts --network polygon   # deploy to Polygon mainnet
-npx hardhat run scripts/deploy.ts --network mumbai    # deploy to Mumbai testnet
+npx hardhat run scripts/deploy.ts --network mumbai    # deploy to Mumbai testnet (deprecated)
+npx hardhat run scripts/deploy.ts --network amoy      # deploy to Amoy testnet
 npx hardhat clean                                     # remove artifacts/ + cache/
 ```
 
@@ -52,12 +53,13 @@ CredChain_Solidity/
     deploy.ts                    # deploys + initializes all 3 contracts in order
   test/
     01-deploy.test.ts            # 2 tests: deployment env-var validation
-    02-credential.test.ts        # 60 tests: contract behavior across all 4 contracts
+    02-credential.test.ts        # 67 tests: contract behavior across all 4 contracts
   artifacts/                     # compiled contract artifacts (gitignored)
   cache/                         # hardhat compilation cache (gitignored)
   typechain-types/               # generated TypeScript bindings (gitignored)
   coverage/                      # solidity-coverage HTML report (gitignored)
-  coverage.json                  # coverage summary
+  coverage.json                  # coverage summary (gitignored — regenerate with `npx hardhat coverage`)
+  deployments/                   # deploy artifacts as JSON files per network (gitignored)
   hardhat.config.ts              # solc 0.8.24, viaIR, cancun, optimizer 200 runs
   tsconfig.json
   package.json
@@ -210,6 +212,8 @@ Do not change these without re-running the full test suite and re-generating abi
 | `PRIVATE_KEY` | only for `--network polygon`/`mumbai` | deployer + tx signer |
 | `POLYGON_RPC_URL` | only for `--network polygon` | RPC endpoint |
 | `MUMBAI_RPC_URL` | only for `--network mumbai` | RPC endpoint |
+| `AMOY_RPC_URL` | only for `--network amoy` | Polygon Amoy testnet RPC URL |
+| `POLYGONSCAN_API_KEY` | only for contract verification | Etherscan API key for contract verification |
 | `INITIAL_SUPER_ADMIN_WALLET_ADDRESS` | **only for `scripts/deploy.ts`** | the wallet that receives `Role.SuperAdmin` during initialization. Hard-fail if missing. |
 
 No env vars are needed for `npx hardhat test` (runs in-process).
@@ -220,7 +224,7 @@ No env vars are needed for `npx hardhat test` (runs in-process).
 - **Files:**
   - `test/01-deploy.test.ts` — 2 tests, validates deployment env-var requirements
   - `test/02-credential.test.ts` — 67 tests, full behavioral coverage of all 4 contracts
-- **Coverage:** `coverage.json` is committed; regenerate with `npx hardhat coverage`
+- **Coverage:** `coverage.json` — coverage summary (gitignored — regenerate with `npx hardhat coverage`)
 - **Style:** white-box, in-repo, asserts against revert errors by name (e.g. `.to.be.revertedWithCustomError(contract, "InvalidNonceError")`)
 - **No integration tests against real RPC** — Hardhat in-process is the only target
 
